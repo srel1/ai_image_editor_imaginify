@@ -107,7 +107,7 @@ const TransformationForm = ({action, data = null, type, userId, creditBalance, c
           });
 
           if (updatedImage) {
-           router.push(`/transformation/${updatedImage._id}`);
+           router.push(`/transformations/${updatedImage._id}`);
           }
 
         } catch (error) {
@@ -127,7 +127,7 @@ const TransformationForm = ({action, data = null, type, userId, creditBalance, c
           if (newImage) {
             form.reset();
             setImage(data);
-            router.push(`/transformation/${newImage._id}`);
+            router.push(`/transformations/${newImage._id}`);
           }
 
         } catch (error) {
