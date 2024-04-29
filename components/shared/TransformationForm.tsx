@@ -24,7 +24,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { aspectRatioOptions, creditFee, defaultValues, transformationTypes } from "@/constants"
 import { CustomField } from "./CustomField"
-import { ReactNode, useState, useTransition } from "react"
+import { ReactNode, useEffect, useState, useTransition } from "react"
 import { AspectRatioKey, debounce, deepMergeObjects } from "@/lib/utils"
 import { FileDiff } from "lucide-react"
 import { updateCredits } from "@/lib/actions/user.actions"
@@ -33,6 +33,7 @@ import TransformedImage from "./TransformedImage"
 import { getCldImageUrl } from "next-cloudinary"
 import { addImage, updateImage } from "@/lib/actions/image.actions"
 import { useRouter } from "next/navigation"
+import InsufficientCreditsModal from "./InsufficientCreditsModal"
 
  
 export const formSchema = z.object({
@@ -65,19 +66,11 @@ const TransformationForm = ({action, data = null, type, userId, creditBalance, c
    // 1. Define your form.
    const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
-      title: "",
-      aspectRatio: "",
-      color: "",
-      prompt: "",
-      publicId: "",
-    },
+    defaultValues: initialValues,
   })
  
   // 2. Define a submit handler.
   async function onSubmit(values: z.infer<typeof formSchema>) {
-    // Do something with the form values.
-    // ✅ This will be type-safe and validated.
     setIsSubmitting(true);
 
     if (data || image) {
@@ -95,14 +88,14 @@ const TransformationForm = ({action, data = null, type, userId, creditBalance, c
         width: image?.width,
         height: image?.height,
         config: transformationConfig,
-        secureURL: image?.secureUrl,
+        secureURL: image?.secureURL,
         transformationURL: transformationUrl,
         aspectRatio: values.aspectRatio,
         prompt: values.prompt,
         color: values.color,
       };
 
-      if (action === "Add") {
+      if (action === "Update") {
         try {
           const updatedImage = await updateImage({
             image: {
@@ -123,7 +116,7 @@ const TransformationForm = ({action, data = null, type, userId, creditBalance, c
       }
 
 
-      if (action === "Update") {
+      if (action === "Add") {
         try {
           const newImage = await addImage({
             image: imageData,
@@ -142,6 +135,8 @@ const TransformationForm = ({action, data = null, type, userId, creditBalance, c
         }
       }
     }
+
+
 
     console.log(values);
     setIsSubmitting(false)
@@ -171,7 +166,7 @@ const TransformationForm = ({action, data = null, type, userId, creditBalance, c
         [fieldName === 'prompt' ? 'prompt' : 'to']: value
       }
     }))
-    }, 1000)
+    }, 1000)();
     return onChangeField(value)
   }
 
@@ -184,18 +179,27 @@ const TransformationForm = ({action, data = null, type, userId, creditBalance, c
     setNewTransformation(null)
 
     startTransition(async () => {
-      await updateCredits(userId, -1)
+      await updateCredits(userId, creditFee)
     })
   }
+
+  useEffect(() => {
+    if(image && (type === 'restore' || type === 'removeBackground')){
+      setNewTransformation(transformationType.config)
+    }
+  
+  }, [image, transformationType.config, type])
+  
 
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+        {creditBalance <= Math.abs(creditFee) && <InsufficientCreditsModal/>}
         <CustomField
           control={form.control}
           name="title"
           formLabel="Image Title"
-          className="w-full"
+          className="w-full mt-8"
           render={({ field }) => <Input {...field} className="input-field" />}
         />
 
@@ -240,6 +244,7 @@ const TransformationForm = ({action, data = null, type, userId, creditBalance, c
                 <Input
                   value={field.value}
                   className="input-field"
+                  placeholder='Insert object name (must be all lowercase)'
                   onChange={(e) =>
                     onInputChangeHandler(
                       "prompt",
@@ -262,6 +267,7 @@ const TransformationForm = ({action, data = null, type, userId, creditBalance, c
                   <Input
                     value={field.value}
                     className="input-field"
+                    placeholder='Prompt goes here (must be all lowercase)'
                     onChange={(e) =>
                       onInputChangeHandler(
                         "color",
